@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Chat } from '@google/genai';
 import { XMarkIcon, PaperAirplaneIcon, SparklesIcon, UserIcon, CpuChipIcon } from '@heroicons/react/24/solid';
 import { ChatMessage } from '../types';
-import { createAIChatSession, sendMessageToAI } from '../services/geminiService';
+import { sendMessageToAI } from '../services/geminiService';
 
 interface AIChatProps {
   isOpen: boolean;
@@ -11,7 +10,6 @@ interface AIChatProps {
 }
 
 const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
-  const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,8 +17,6 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      const newChat = createAIChatSession();
-      setChat(newChat);
       setMessages([
         {
           id: 'initial',
@@ -30,7 +26,6 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
       ]);
     } else {
         setMessages([]);
-        setChat(null);
     }
   }, [isOpen]);
 
@@ -42,9 +37,12 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
   
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !chat || isLoading) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: ChatMessage = { id: Date.now().toString(), role: 'user', content: input };
+    const currentInput = input;
+    const previousMessages = messages;
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -53,10 +51,10 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
     setMessages(prev => [...prev, { id: modelMessageId, role: 'model', content: '', isLoading: true }]);
 
     try {
-        const stream = await sendMessageToAI(chat, input);
+        const stream = sendMessageToAI(previousMessages, currentInput);
         let currentContent = '';
         for await (const chunk of stream) {
-            currentContent += chunk.text;
+            currentContent += chunk;
             setMessages(prev => prev.map(msg => 
                 msg.id === modelMessageId ? { ...msg, content: currentContent } : msg
             ));
@@ -65,14 +63,14 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
             msg.id === modelMessageId ? { ...msg, isLoading: false } : msg
         ));
     } catch (error) {
-        console.error('Gemini API error:', error);
+        console.error('AI Chat stream error:', error);
          setMessages(prev => prev.map(msg => 
             msg.id === modelMessageId ? { ...msg, content: "申し訳ありません、エラーが発生しました。もう一度お試しください。", isLoading: false } : msg
         ));
     } finally {
         setIsLoading(false);
     }
-  }, [chat, input, isLoading]);
+  }, [messages, input, isLoading]);
 
   if (!isOpen) return null;
 

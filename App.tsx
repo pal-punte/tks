@@ -69,7 +69,7 @@ function App() {
     <div className="bg-white text-slate-800">
       <Header />
       <main>
-        <Hero />
+        <Hero onChatOpen={() => setIsChatOpen(true)} />
         <Worries />
         <Features />
         <About />
